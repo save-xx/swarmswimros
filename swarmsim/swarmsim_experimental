@@ -1,0 +1,88 @@
+import rclpy
+from rclpy.node import Node
+from rclpy.time import Time
+from ament_index_python.packages import get_package_share_directory
+
+from rosgraph_msgs.msg import Clock
+from geometry_msgs.msg import TwistStamped 
+
+import  yaml, os
+from SimAPI import UE5_API
+
+YAML_PATH = get_package_share_directory('swarmsim')
+
+class SwarmSim(Node):
+    def __init__(self):
+        super().__init__('swarmsim')
+        # variable initializations
+        self.cmd_subs = {}
+        self.cmd_pubs = {}
+        self.load_yaml()
+
+        # define the mode of operation: 
+        #   "ue5" : use UE5, forces framerate to 60fps, real-time 
+        #   "rt"  : use real-time
+        #   "step": step-and-wait configuration, wait for confirmation for each step
+        self.declare_parameters(namespace='', parameters=[('mode', 'ue5')])
+        self.mode = self.get_parameter('mode').get_parameter_value().string_value
+        if not self.mode in {'ue5', 'rt', 'step'}: raise ValueError
+        # Enable use of Simulated Time
+        self.declare_parameter('use_sim_time', True)    
+        self.clock_publisher = self.create_publisher(Clock, '/clock', 10)  
+        # API Related functions
+        self.server = UE5_API()         # Initialize the API instance
+        self.register_callbacks()       # Register callbacks
+
+        # Run the API
+        self.server()
+
+    def load_yaml(self):
+        ''' Load ROS2 Specific parameters '''
+        with open(os.path.join(YAML_PATH,'settings.yaml'),'r') as file:
+            parameters = yaml.safe_load(file)
+            self.GT_RATE = parameters('groud_truth_rate')
+            self.H_RATE = parameters('heading_rate')
+            self.D_RATE = parameters('depth_rate')
+
+    def register_callbacks(self):
+        """Register callbacks for different types of sensors."""
+        self.server.register_callback("Images", self.images_clbk)
+        self.server.register_callback("Echo",   self.echo_clbk)
+        self.server.register_callback("Time",   self.time_clbk)
+
+    def images_clbk(self,data):
+        ''' Handle UE5 syntetic images from virtual cameras'''
+        pass
+
+    def echo_clbk(self,data):
+        ''' Handle UE5 vertical echosounder measuraments'''
+        pass
+
+    def time_clbk(self,data):
+        ''' Get time '''
+        pass
+
+    def create_pubs(self, topic: str, type):
+        ''' create a topic sensor named topic for each agent'''
+        self.cmd_pubs[topic] = {}
+        for agent in self.agent_names:
+           self.cmd_pubs[topic][agent].append(self.create_publisher(type, f'{agent}/{topic}', 10))
+
+    def create_subscribers(self):
+         ''' create a command suscriber for each agent'''
+         for name in self.agent_names:
+            topic_name = name+'/cmd'
+            self.cmd_subs[name] = self.create_subscription(
+                TwistStamped,topic_name,
+                lambda msg, topic=topic_name: self.cmd_clbk(msg, topic), 1)
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    swarm_sim = SwarmSim()
+    rclpy.spin(swarm_sim)
+    swarm_sim.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
