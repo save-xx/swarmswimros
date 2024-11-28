@@ -9,7 +9,7 @@ from sensor_msgs.msg import Image, Range
 from rosgraph_msgs.msg import Clock
 from geometry_msgs.msg import TwistStamped 
 
-import  yaml, os
+import yaml, os, asyncio
 from SimAPI import UE5_API
 
 YAML_PATH = get_package_share_directory('swarmsim')
@@ -46,9 +46,6 @@ class SwarmSim(Node):
         self.create_publishers()        # create a publisher for each agent/topic combination
         self.register_callbacks()       # Register callbacks
 
-        # Run the API
-        self.server()
-
     def load_yaml(self):
         ''' Load ROS2 Specific parameters '''
         with open(os.path.join(YAML_PATH,'settings.yaml'),'r') as file:
@@ -75,7 +72,7 @@ class SwarmSim(Node):
         echo_message = Range()
         echo_message.header.stamp = self.get_clock().now().to_msg()
         echo_message.header.frame_id = name
-        echo_message.range = val
+        echo_message.range = float(val)
         self.cmd_pubs['echo'][name].publish(echo_message)
 
     def time_clbk(self,data):
@@ -125,13 +122,37 @@ class SwarmSim(Node):
             self.cmd_subs[agent.name] = self.create_subscription(
                 TwistStamped, topic_name,
                 lambda msg, topic=topic_name: self.cmd_clbk(msg, topic), 1)
+            
+    # ---------------------------------------------------------------------------------
+    async def ros_spin(self):
+        '''Async wrapper for spinning the ROS node.'''
+        while rclpy.ok():
+            rclpy.spin_once(self, timeout_sec=0.1)
+            await asyncio.sleep(0)  # Yield control to the event loop
+        rclpy.shutdown()
+            
+    async def main(self):
+        ''' Async Wrapper of all processes. '''
+        await asyncio.gather(
+            self.server.call(),
+            self.ros_spin()
+        )
 
 def main(args=None):
+    
     rclpy.init(args=args)
     swarm_sim = SwarmSim()
-    rclpy.spin(swarm_sim)
-    swarm_sim.destroy_node()
-    rclpy.shutdown()
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        loop.run_until_complete(swarm_sim.main())
+    except KeyboardInterrupt:
+        swarm_sim.get_logger().warning("UserInterrupt")
+    finally:
+        swarm_sim.destroy_node()
+        loop.close()
 
 if __name__ == '__main__':
     main()
