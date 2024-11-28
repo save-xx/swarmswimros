@@ -22,6 +22,7 @@ class SwarmSim(Node):
         self.create_pubs('echosounder', Header)
         self.create_pubs('img', Image)
 
+
         ## LOAD SETTINGS
         self.load_yaml()
         self.declare_parameter('use_sim_time', True)    # Enable use of Simulated Time
