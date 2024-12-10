@@ -1,5 +1,6 @@
 # swarmsim
 ROS2 package, bridging uw_swarmsim to the ROS2 envrioment. 
+Make sure to have uw_swarmsim installed: [uw_swarmsim link](https://github.com/save-xx/uw_swarmsim)
 Current version: Humble
 
 ## Setup
