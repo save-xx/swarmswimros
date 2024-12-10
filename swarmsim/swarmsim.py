@@ -5,7 +5,7 @@ from rclpy.parameter import Parameter
 from ament_index_python.packages import get_package_share_directory
 
 from cv_bridge import CvBridge
-from sensor_msgs.msg import Image, Range
+from sensor_msgs.msg import Image, Range, CompressedImage, JointState
 from rosgraph_msgs.msg import Clock
 from geometry_msgs.msg import TwistStamped, Vector3Stamped
 from example_interfaces.msg import Bool
@@ -54,7 +54,7 @@ class SwarmSim(Node):
         self.clock_publisher = self.create_publisher(Clock, '/clock', 10)  
 
         # create Simulator Instance
-        sim_path = None
+        sim_path = None                 # if not specified search default
         if self.sim_filename:           # If filename was specified search the full path
             with importlib.resources.path('uw_swarmsim', self.sim_filename + '.xml') as file_path:
                 sim_path = file_path
@@ -64,10 +64,21 @@ class SwarmSim(Node):
         if 'ue5'==self.mode:  self.server = UE5_API()         # Initialize the API instance
         self.create_publishers()        # create a publisher for each agent/topic combination
         self.register_callbacks()       # Register callbacks
+        self.create_subscribers()       # add cmd Subscribers
 
         # Plugin functions
         if "CNNDetector" in self.plugins: self.Detection = CNNDetection()
         if "Acoustic" in self.plugins: self.Acoustic = AcousticChannel()
+
+        # Subscriber to send acoustics
+        if "Acoustic" in self.plugins:
+            # Type used to store the byte array of the payload
+            # the frame_id contains the sender name
+            self.acoustic_subscriber = self.create_subscription(
+                CompressedImage, 
+                'acoustic_send', 
+                self.send_acoustic_clbk, 1)
+
 
         # Sensor timers
         self.gt_timer = self.create_timer(self.GT_RATE, self.gt_callback)
@@ -89,6 +100,8 @@ class SwarmSim(Node):
             if "Acoustic" in self.plugins:
                 delivered = self.Acoustic(self.sim)
                 if delivered:
+                    comm_msg, ac_range_msg = pack_Acoustic(self.sim,delivered)
+                    self.acoustic_callback(comm_msg, ac_range_msg)
                     pass ##TODO
 
             self.clock_publisher.publish(time_unpk(self.sim.time)) # Publish clock at each tick
@@ -111,7 +124,7 @@ class SwarmSim(Node):
 
     def step_callback(self, data):
         ''' Special callback to allow a step based simulation progression '''
-        self.get_logger().info('Step received, running one cycle.')
+        # self.get_logger().info('Step received, running one cycle.')
         if data.data: asyncio.create_task(self.cycle())  # Run cycle asynchronously
 
     def images_clbk(self,data):
@@ -124,7 +137,6 @@ class SwarmSim(Node):
 
     def NN_callback(self,datalist):
         for data in datalist:
-            print(data)
             name = data.header.frame_id
             self.cmd_pubs['NNDetection'][name].publish(data)
 
@@ -146,6 +158,13 @@ class SwarmSim(Node):
             name = msg.header.frame_id
             self.cmd_pubs['depth'][name].publish(msg)
 
+    def acoustic_callback(self, comm_msg, ac_range_msg):
+        for msg, rng in zip(comm_msg,ac_range_msg):
+            name = msg.header.frame_id
+            self.cmd_pubs['acoustic'][name].publish(msg)
+            if rng: self.cmd_pubs['ac_ranges'][name].publish(rng)
+            print(rng)
+
     def register_callbacks(self):
         '''Register API callback for different types of sensors.'''
         if 'ue5'==self.mode: 
@@ -153,6 +172,8 @@ class SwarmSim(Node):
             self.server.register_callback("echo",   self.echo_clbk)
         if 'step'==self.mode:
             self.create_subscription(Bool, 'sim_step', self.step_callback, 1)
+        
+
 
     # ----------------------------- ITERATIVE PUBLISHER DEFINITION --------------------------------
 
@@ -172,6 +193,9 @@ class SwarmSim(Node):
             self.create_pubs('view', Image)
         if "CNNDetector" in self.plugins: 
             self.create_pubs('NNDetection', Path)
+        if "Acoustic" in self.plugins:
+            self.create_pubs('acoustic', CompressedImage)
+            self.create_pubs('ac_ranges', JointState)
 
     # ------------------------------ ITERATIVE SUBSCRIBER DEFINITION ------------------------------
 
@@ -189,6 +213,7 @@ class SwarmSim(Node):
         # Schedule the modification of self.cmds to run in the asyncio event loop
         asyncio.run_coroutine_threadsafe(self._handle_cmd(parent, msg), asyncio.get_event_loop())
         
+
     async def _handle_cmd(self, parent, msg):
         ''' self.cmd update protected from race conditions '''
         async with self.lock: 
@@ -196,6 +221,18 @@ class SwarmSim(Node):
                 'planar': [msg.twist.linear.x, msg.twist.linear.y],
                 'vertical': msg.twist.linear.z,  'heading': msg.twist.angular.z}
             )
+
+    def send_acoustic_clbk(self, msg):
+        ''' Send communication to acoustic channel '''
+        name = msg.header.frame_id
+        agent = next((agent for agent in self.sim.agents if agent.name == name), None)
+        payload  = msg.data
+        if agent: asyncio.run_coroutine_threadsafe(self._handle_acoustic(agent, payload), asyncio.get_event_loop())
+    
+    async def _handle_acoustic(self, agent, payload):
+        ''' Load communication in the acoustic enviroment, protected by race conditions '''
+        async with self.lock: 
+            out = self.Acoustic.send(agent, self.sim , 1.0,  payload)
 
     ## Handler related to API and ROS2 anysincronous operations       
     # ---------------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 from cv_bridge import CvBridge
-from sensor_msgs.msg import Image, Range
+from sensor_msgs.msg import Image, Range, CompressedImage, JointState
 from rosgraph_msgs.msg import Clock
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped, Pose, Point, TwistStamped, Vector3Stamped
@@ -119,3 +119,30 @@ def pos_pack(sim):
         gt.vector.z  = agent.measured_pos
         list_of_msgs.append(gt)
     return list_of_msgs
+
+def pack_Acoustic(sim, delivered):
+    ''' pack acoustic messages and ranging- doppler of the message'''
+    ac_msgs, ac_rngs = [], [] 
+    for key, input in delivered.items():
+        msg = CompressedImage()
+        msg.header.frame_id = key
+        msg.format = input[1]
+        # If the message was a failed message
+        if not type(input[0]).__name__ == 'array':
+            ac_msgs.append(msg)
+            ac_rngs.append(None)
+        # If message was succesfull
+        else:
+            agent  = next((agent for agent in sim.agents if agent.name == key),      None)
+            sender = next((agent for agent in sim.agents if agent.name == input[1]), None)
+            msg.data = input[0]
+            # Populate Ranges
+            rng = JointState()
+            rng.header.frame_id = key
+            rng.name = [input[1]]
+            rng.position.append(float(sim.OWTT_acoustic_range(agent,sender)))
+            rng.velocity.append(float(sim.doppler(agent,sender)))
+            # add to lists
+            ac_msgs.append(msg)
+            ac_rngs.append(rng)
+    return ac_msgs, ac_rngs
