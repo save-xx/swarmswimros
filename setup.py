@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 import os
 from glob import glob
 
-package_name = 'swarmsim'
+package_name = 'swarmswimros'
 
 setup(
     name=package_name,
@@ -23,7 +23,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'swarmsim = swarmsim.swarmsim:main',
+            'swarmswim = swarmswimros.swarmswim:main',
         ],
     },
 )

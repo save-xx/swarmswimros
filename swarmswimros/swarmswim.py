@@ -13,17 +13,17 @@ from nav_msgs.msg import Path
 
 import yaml, os, asyncio, time
 from SimAPI import UE5_API
-from swarmsim.swarmsim_functions import *
+from swarmswimros.swarmswim_functions import *
 import importlib.resources
 
 from sim_class import Simulator
 from sensors.visual_detection import CNNDetection
 from sensors.acoustic_comm import AcousticChannel
 
-YAML_PATH = get_package_share_directory('swarmsim')
+YAML_PATH = get_package_share_directory('swarmswimros')
 cv_bridge = CvBridge()
 
-class SwarmSim(Node):
+class SwarmSwim(Node):
     def __init__(self):
         '''
         Define the mode of operation (ROS2 param): 
@@ -31,7 +31,7 @@ class SwarmSim(Node):
           "rt"  : use real-time
           "step": step-and-wait configuration, wait for confirmation for each step
         '''
-        super().__init__('swarmsim')
+        super().__init__('swarmswim')
         self.declare_parameters(
             namespace='', 
             parameters=[('mode', 'step')]
@@ -56,7 +56,7 @@ class SwarmSim(Node):
         # create Simulator Instance
         sim_path = None                 # if not specified search default
         if self.sim_filename:           # If filename was specified search the full path
-            with importlib.resources.path('uw_swarmsim', self.sim_filename + '.xml') as file_path:
+            with importlib.resources.path('SwarmSwIM', self.sim_filename + '.xml') as file_path:
                 sim_path = file_path
         self.sim = Simulator(self.Dt, sim_xml=sim_path)
 
@@ -264,16 +264,16 @@ class SwarmSim(Node):
 def main(args=None):
     
     rclpy.init(args=args)
-    swarm_sim = SwarmSim()
+    swarm_swim = SwarmSwim()
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
     try:
-        loop.run_until_complete(swarm_sim.main())
+        loop.run_until_complete(swarm_swim.main())
     except KeyboardInterrupt:
-        swarm_sim.get_logger().warning("UserInterrupt")
+        swarm_swim.get_logger().warning("UserInterrupt")
     finally:
-        swarm_sim.destroy_node()
+        swarm_swim.destroy_node()
         loop.close()
 
 if __name__ == '__main__':
