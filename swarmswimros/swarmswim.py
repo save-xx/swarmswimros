@@ -11,14 +11,21 @@ from geometry_msgs.msg import TwistStamped, Vector3Stamped
 from example_interfaces.msg import Bool
 from nav_msgs.msg import Path
 
-import yaml, os, asyncio, time
-from SimAPI import UE5_API
-from swarmswimros.swarmswim_functions import *
+import yaml, os, sys, asyncio, time
 import importlib.resources
 
-from sim_class import Simulator
-from sensors.visual_detection import CNNDetection
-from sensors.acoustic_comm import AcousticChannel
+# Dynamically add the SwarmSwIM submodule to the Python path
+swarm_swim_path = os.path.join(os.path.dirname(__file__), 'SwarmSwIM')
+if swarm_swim_path not in sys.path:
+    sys.path.insert(0, swarm_swim_path)
+
+from swarmswimros.swarmswim_functions import *
+from SwarmSwIM import UE5_API
+from SwarmSwIM import Simulator, CNNDetection, AcousticChannel
+
+# from sim_class import Simulator
+# from sensors.visual_detection import CNNDetection
+# from sensors.acoustic_comm import AcousticChannel
 
 YAML_PATH = get_package_share_directory('swarmswimros')
 cv_bridge = CvBridge()
