@@ -13,6 +13,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name), glob('config/*.yaml')),
+        (os.path.join('share', package_name), glob('config/*.xml')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -24,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'swarmswim = swarmswimros.swarmswim:main',
+            'demo1 = swarmswimros.demo1:main',
         ],
     },
 )

@@ -1,4 +1,4 @@
-sim_filename: "" # default is selected
+sim_filename: "demo" # default is selected
 Dt: 0.1
 
 groud_truth_rate: 0.1

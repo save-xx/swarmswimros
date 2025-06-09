@@ -23,21 +23,18 @@ from swarmswimros.swarmswim_functions import *
 from SwarmSwIM import UE5_API
 from SwarmSwIM import Simulator, CNNDetection, AcousticChannel
 
-# from sim_class import Simulator
-# from sensors.visual_detection import CNNDetection
-# from sensors.acoustic_comm import AcousticChannel
-
-YAML_PATH = get_package_share_directory('swarmswimros')
+CONFIG_PATH = get_package_share_directory('swarmswimros')
 cv_bridge = CvBridge()
 
 class SwarmSwim(Node):
     def __init__(self):
-        '''
-        Define the mode of operation (ROS2 param): 
+        """
+        Define the mode of operation (ROS2 param).
+
           "ue5" : use UE5, forces framerate to 60fps, real-time 
           "rt"  : use real-time
           "step": step-and-wait configuration, wait for confirmation for each step
-        '''
+        """
         super().__init__('swarmswim')
         self.declare_parameters(
             namespace='', 
@@ -55,17 +52,18 @@ class SwarmSwim(Node):
         self.cmd_pubs = {}
         self.load_yaml()
         self.cmds = []
-        if 'ue5'==self.mode: self.Dt=1/60 # UE5 sim overwrite default
+        if 'ue5'== self.mode: self.Dt=1/60 # UE5 sim overwrite default
 
         # create a clock topic for the sim_time
         self.clock_publisher = self.create_publisher(Clock, '/clock', 10)  
 
         # create Simulator Instance
-        sim_path = None                 # if not specified search default
         if self.sim_filename:           # If filename was specified search the full path
-            with importlib.resources.path('SwarmSwIM', self.sim_filename + '.xml') as file_path:
-                sim_path = file_path
+            sim_path = os.path.join(CONFIG_PATH, self.sim_filename + '.xml')
+        else: 
+            sim_path = os.path.join(CONFIG_PATH, 'simulation.xml')        
         self.sim = Simulator(self.Dt, sim_xml=sim_path)
+        self.get_logger().info(f'Initiated Simulator with file {sim_path}')
 
         # API Related functions
         if 'ue5'==self.mode:  self.server = UE5_API()         # Initialize the API instance
@@ -116,7 +114,7 @@ class SwarmSwim(Node):
 
     def load_yaml(self):
         ''' Load ROS2 Specific parameters '''
-        with open(os.path.join(YAML_PATH,'settings.yaml'),'r') as file:
+        with open(os.path.join(CONFIG_PATH, 'settings.yaml'),'r') as file:
             parameters = yaml.safe_load(file)
             self.sim_filename = parameters['sim_filename']
             self.Dt = parameters['Dt']
