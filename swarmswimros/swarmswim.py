@@ -20,7 +20,7 @@ if swarm_swim_path not in sys.path:
     sys.path.insert(0, swarm_swim_path)
 
 from swarmswimros.swarmswim_functions import *
-from SwarmSwIM import UE5_API
+from SwarmSwIM.SimAPI import UE5_API
 from SwarmSwIM import Simulator, CNNDetection, AcousticChannel
 
 CONFIG_PATH = get_package_share_directory('swarmswimros')
